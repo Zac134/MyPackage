@@ -2,7 +2,7 @@ local StateMachine = {}
 StateMachine.__index = StateMachine
 
 local State = require(script.State)
-local Signal = require(script.Packages.signal)
+local Signal = require(script.Parent.signal)
 
 export type StateMachine = {
 	States: { State.StateType? },
