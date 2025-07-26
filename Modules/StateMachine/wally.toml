@@ -1,0 +1,10 @@
+[package]
+name = "zac134/statemachine"
+version = "0.1.0"
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+license = "MIT"
+exclude = ["README.md"]
+
+[dependencies]
+signal = "sleitnick/signal@2.0.3"

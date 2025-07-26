@@ -1,0 +1,3 @@
+[submodule "Modules/Timer"]
+	path = Modules/Timer
+	url = https://github.com/ya-ya-620/Timer.git
