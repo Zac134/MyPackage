@@ -1,10 +1,10 @@
 [package]
-name = "zac134/statemachine"
+name = "zac134/better-config"
 version = "0.1.1"
 registry = "https://github.com/UpliftGames/wally-index"
 realm = "shared"
 license = "MIT"
-exclude = ["README.md"]
+exclude = []
 
 [dependencies]
 signal = "sleitnick/signal@2.0.3"
