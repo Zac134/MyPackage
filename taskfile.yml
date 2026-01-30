@@ -1,0 +1,18 @@
+version: "3"
+
+tasks:
+    wally_install:
+        desc: "Install wally and fix wally type"
+        cmds:
+            - wally install
+            - rojo sourcemap default.project.json --output sourcemap.json
+            - wally-package-types --sourcemap sourcemap.json Packages/
+
+    serve-dev:
+        desc: "Serve default.dev.json"
+        cmds:
+            - |
+                rojo serve dev.project.json &
+                rojo sourcemap --watch dev.project.json --output sourcemap.json &
+                wait
+
