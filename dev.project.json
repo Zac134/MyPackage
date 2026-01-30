@@ -1,0 +1,12 @@
+{
+    "name": "myUtils",
+    "tree": {
+        "$className": "DataModel",
+        "ReplicatedStorage": {
+            "$className": "ReplicatedStorage",
+            "Modules": {
+                "$path": "Modules"
+            }
+        }
+    }
+}
