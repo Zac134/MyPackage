@@ -62,7 +62,7 @@ end
 	@param src ConfigSrc - The source to check
 	@return ConfigSrcType - The type of the source
 ]]
-function BetterConfig.getConfigType(src: ConfigSrc): ConfigSrcType
+function BetterConfig._getConfigType(src: ConfigSrc): ConfigSrcType
 	if typeof(src) == "Instance" then
 		if src:IsA("Configuration") then
 			return "Configuration"
