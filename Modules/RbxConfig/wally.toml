@@ -1,13 +1,12 @@
 [package]
-name = "zac134/better-config"
-version = "2.1.2"
+name = "zac134/rbx-config"
+version = "0.0.2"
 registry = "https://github.com/UpliftGames/wally-index"
 realm = "shared"
 license = "MIT"
 exclude = ["Packages", "README.md"]
 authors = ["yaSu <https://github.com/Zac134>"]
-repository = "https://github.com/Zac134/BetterConfig"
-description = "Roblox Configuration/Attribute/Dict Wrapper for getting value,setting value, observing changed signal"
+description = "Roblox ConfigService Wrapper"
 
 [dependencies]
 signal = "sleitnick/signal@^2.0"
