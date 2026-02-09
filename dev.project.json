@@ -6,6 +6,27 @@
             "$className": "ReplicatedStorage",
             "Modules": {
                 "$path": "Modules"
+            },
+            "Packages": {
+                "$path": "Packages"
+            },
+            "shared": {
+                "$path": "Examples/shared"
+            }
+        },
+        "ServerScriptService": {
+            "$className": "ServerScriptService",
+            "server": {
+                "$path": "Examples/server"
+            }
+        },
+        "StarterPlayer": {
+            "$className": "StarterPlayer",
+            "StarterPlayerScripts": {
+                "$className": "StarterPlayerScripts",
+                "client": {
+                    "$path": "Examples/client"
+                }
             }
         }
     }

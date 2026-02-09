@@ -7,7 +7,7 @@
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Signal = require(script.Parent.Parent.Parent.signal)
+local Signal = require(ReplicatedStorage.Packages.signal)
 local BetterConfigTypes = require(script.Parent.Parent.BetterConfigTypes)
 
 local AttributeConfig = {}

@@ -1,6 +1,6 @@
 [package]
 name = "zac134/better-config"
-version = "2.1.2"
+version = "2.1.1"
 registry = "https://github.com/UpliftGames/wally-index"
 realm = "shared"
 license = "MIT"

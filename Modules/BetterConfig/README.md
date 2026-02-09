@@ -1,495 +1,869 @@
 # BetterConfig
 
-[English](#english) | [日本語](#japanese)
+Unified configuration management for Roblox using the Strategy Pattern.
 
----
+## Overview
 
-<a name="english"></a>
+BetterConfig provides a single, consistent API for managing configuration data from multiple sources in Roblox. Whether your config comes from Configuration instances with ValueBase children, Instance Attributes, or plain Lua tables, BetterConfig abstracts the differences and gives you the same intuitive interface with full type safety and reactive change observation.
 
-## English
+**Problem**: Different config sources in Roblox have different APIs (Configuration→ValueBase, Instance→Attributes, plain tables), making code inconsistent and harder to maintain.
 
-### Overview
+**Solution**: BetterConfig automatically detects the source type and returns the appropriate implementation, giving you one unified interface with type-safe autocomplete.
 
-BetterConfig is a Roblox Luau module that provides unified configuration management using the Strategy Pattern. It automatically selects the appropriate implementation based on the source type — `Configuration` instances (ValueBase children) or Instance Attributes — and exposes a consistent API for getting, setting, and observing value changes via Signals.
+## Features
 
-### Features
+- **Three config source strategies** with automatic detection
+- **Type-safe API** with Luau generics and `keyof<T>` for autocomplete
+- **Reactive value change observation** with Signal support
+- **Zero boilerplate** factory pattern
+- **Resource management** with `Destroy()` method
 
-- Support for `Configuration` instances with ValueBase objects (IntValue, StringValue, NumberValue, etc.)
-- Support for Instance Attributes
-- Unified API (`Get` / `Set` / `GetValueChangedSignal`) regardless of source type
-- Reactive change observation using [sleitnick/signal](https://github.com/Sleitnick/RbxUtil/tree/main/modules/signal)
-- Automatic resource cleanup with `Destroy()`
-- Factory pattern with automatic source type detection
-- Type-safe with Luau generics and type annotations
+## Installation
 
-### Installation
-
-#### Using Wally
-
-Add the following to your `wally.toml`:
+### Via Wally
 
 ```toml
 [dependencies]
 BetterConfig = "zac134/better-config@2.0.0"
 ```
 
-### Usage
+### Manual Installation
 
-#### Basic Usage — Get / Set
+Copy the `Modules/BetterConfig/` directory to your project's ReplicatedStorage or ServerStorage.
+
+## Quick Start
 
 ```lua
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local BetterConfig = require(ReplicatedStorage.Packages.BetterConfig)
+local BetterConfig = require(ReplicatedStorage.Modules.BetterConfig)
 
--- With a Configuration instance (ValueBase children)
-local configInstance = workspace.GameConfig -- Configuration with IntValue, StringValue, etc.
-local config = BetterConfig.new(configInstance)
+-- Factory automatically detects the config source type
+local config = BetterConfig.new(workspace.GameConfig)
 
-print(config:Get("MaxPlayers"))  -- Gets the Value of the IntValue named "MaxPlayers"
-config:Set("MaxPlayers", 20)     -- Sets the Value of the IntValue named "MaxPlayers"
+-- Get values
+local value = config:Get("max_players")
 
--- With Instance Attributes
-local settingsInstance = workspace.Settings
-local settings = BetterConfig.new(settingsInstance)
+-- Set values
+config:Set("max_players", 10)
 
-print(settings:Get("Volume"))    -- Gets the attribute "Volume"
-settings:Set("Volume", 0.8)     -- Sets the attribute "Volume"
-```
-
-The factory `BetterConfig.new()` automatically detects the source type:
-
-- If the source is a `Configuration` instance, it creates a **ConfigInstance** (uses ValueBase children).
-- Otherwise, it creates an **AttributeConfig** (uses Instance Attributes).
-
-#### Observing Value Changes
-
-Use `GetValueChangedSignal(key)` to get a Signal that fires whenever the specified value changes.
-
-```lua
-local signal = config:GetValueChangedSignal("MaxPlayers")
-
-signal:Connect(function(newValue)
-    print("MaxPlayers changed to:", newValue)
+-- Observe changes
+config:GetValueChangedSignal("max_players"):Connect(function(newValue)
+    print("max_players changed to:", newValue)
 end)
 ```
 
-The returned Signal is a [sleitnick/signal](https://github.com/Sleitnick/RbxUtil/tree/main/modules/signal) instance, supporting `Connect`, `Once`, `Wait`, and other standard Signal methods.
+## Configuration Sources
 
-#### Using Individual Implementations Directly
+### 1. Instance Attributes
 
-If you know the source type in advance, you can use the implementations directly:
+Use Attributes when you need simple key-value config on existing Instances.
 
 ```lua
--- ConfigInstance (for Configuration with ValueBase children)
-local ConfigInstance = BetterConfig.ConfigInstance
-local config = ConfigInstance.new(workspace.GameConfig)
+local part = workspace.ConfigPart
+part:SetAttribute("max_items", 10)
+part:SetAttribute("show_ui", true)
 
--- AttributeConfig (for Instance Attributes)
-local AttributeConfig = BetterConfig.AttributeConfig
-local settings = AttributeConfig.new(workspace.Settings)
+local config = BetterConfig.fromAttribute(part)
+local maxItems = config:Get("max_items")
+config:Set("show_ui", false)
 ```
 
-#### Cleanup
+**Benefits:**
+- Flexible types supported by Roblox Attributes
+- Easy to inspect and modify in Studio Properties panel
+- Lightweight (no child instances required)
+
+### 2. Configuration/ValueBase
+
+Use Configuration instances when you need specific ValueBase types or want visual Studio editing.
 
 ```lua
--- Clean up all connections and signals when no longer needed
+local configInstance = workspace.GameConfig  -- Configuration instance with ValueBase children
+local config = BetterConfig.fromConfiguration(configInstance)
+
+local maxPlayers = config:Get("max_players")  -- Reads from IntValue child
+config:Set("max_players", 8)  -- Updates IntValue.Value
+```
+
+**Benefits:**
+- Type-specific ValueBase children (IntValue, StringValue, BoolValue, etc.)
+- Visual hierarchy in Studio Explorer
+- Direct access to ValueBase properties
+
+**Supported ValueBase types:** `ObjectValue`, `IntValue`, `BoolValue`, `StringValue`, `NumberValue`, `Color3Value`, `CFrameValue`, `Vector3Value`, `BrickColorValue`, `RayValue`
+
+### 3. Dictionary/Table
+
+Use Dictionary config when you need runtime config generation, testing, or programmatic configs.
+
+```lua
+local config = BetterConfig.fromDict({
+    round_time = 120,
+    team_size = 4,
+    map_name = "Grasslands",
+})
+
+local roundTime = config:Get("round_time")
+config:Set("round_time", 180)
+```
+
+**Benefits:**
+- No Instance required, pure Lua
+- Perfect for testing and runtime configuration
+- Automatic type mapping (string→StringValue, number→NumberValue, etc.)
+- Creates internal Configuration instance with appropriate ValueBase children
+
+## Factory vs Explicit Methods
+
+### Auto-Detection (Recommended)
+
+```lua
+local config1 = BetterConfig.new(workspace.GameConfig)  -- Configuration detected
+local config2 = BetterConfig.new(workspace.Part)         -- Attribute detected
+local config3 = BetterConfig.new({key = "value"})        -- Dictionary detected
+```
+
+Use `BetterConfig.new()` when you want automatic source detection.
+
+### Explicit Methods
+
+```lua
+local config1 = BetterConfig.fromAttribute(instance)      -- Explicit Attribute config
+local config2 = BetterConfig.fromConfiguration(config)    -- Explicit Configuration config
+local config3 = BetterConfig.fromDict(table)               -- Explicit Dictionary config
+```
+
+Use explicit methods when:
+- You want to be explicit about the config type
+- You need better type inference
+- You're building a library and want clear contracts
+
+## Type-Safe Autocomplete
+
+Define your config shape as a type for autocomplete support:
+
+```lua
+type MyConfig = {
+    show_ui: boolean,
+    max_items: number,
+    welcome_message: string,
+}
+
+-- Type hint enables autocomplete for all methods
+local config = BetterConfig.fromAttribute(configPart)
+
+-- Get with autocomplete - valid keys suggested automatically
+local showUi = config:Get("show_ui")        -- ✓ Autocomplete works
+local maxItems = config:Get("max_items")    -- ✓ Autocomplete works
+-- config:Get("invalid_key")                -- ✗ Type error if strict mode enabled
+```
+
+The type definition enables your IDE/editor to suggest valid keys when calling `Get`, `Set`, and `GetValueChangedSignal`.
+
+## Observing Value Changes
+
+`GetValueChangedSignal` returns a [Signal](https://github.com/sleitnick/rbx-util/tree/main/modules/signal) that fires when a value changes:
+
+```lua
+local signal = config:GetValueChangedSignal("max_items")
+
+-- Connect to listen for changes
+signal:Connect(function(newValue)
+    print("max_items changed to:", newValue)
+end)
+
+-- Fire once and disconnect
+signal:Once(function(newValue)
+    print("First change detected:", newValue)
+end)
+
+-- Wait for next change
+task.spawn(function()
+    local newValue = signal:Wait()
+    print("Got new value:", newValue)
+end)
+```
+
+### When Signals Fire
+
+- **AttributeConfig**: Fires when `Instance:SetAttribute()` is called or Attribute changes in Studio
+- **ConfigInstance**: Fires when the ValueBase child's `.Value` property changes
+- **DictionaryConfig**: Fires when `Set()` is called on the config
+
+## Resource Cleanup
+
+Always call `Destroy()` when you're done with a config to clean up connections and signals:
+
+```lua
+local config = BetterConfig.new(workspace.GameConfig)
+
+-- Use the config...
+config:GetValueChangedSignal("max_items"):Connect(handler)
+
+-- Clean up when done (important!)
 config:Destroy()
 ```
 
-### API Reference
+**Why it matters:** `GetValueChangedSignal` creates `RBXScriptConnection` objects and Signal instances. Calling `Destroy()` disconnects all connections and destroys all signals, preventing memory leaks.
 
-#### `BetterConfig.new(src: Configuration | Instance): BaseConfigClass`
+**When to call Destroy():**
+- When the config is no longer needed
+- Before removing the source Instance
+- In cleanup functions (e.g., `Maid:DoCleaning()`)
 
-Creates a new Config instance. Automatically selects the implementation based on the source type.
+## API Reference
 
-**Parameters:**
+### Factory Methods
 
-- `src`: A `Configuration` instance (uses ValueBase children) or any other `Instance` (uses Attributes)
-
-**Returns:**
-
-- `BaseConfigClass`: The appropriate Config implementation
-
-**Errors:**
-
-- Throws if `src` is a table (not yet implemented)
-- Throws if `src` is not a valid type
-
----
-
-#### `BetterConfig.ConfigInstance`
-
-Direct reference to the ConfigInstance class. Can be used to create ConfigInstance objects directly via `ConfigInstance.new(src: Configuration)`.
-
-#### `BetterConfig.AttributeConfig`
-
-Direct reference to the AttributeConfig class. Can be used to create AttributeConfig objects directly via `AttributeConfig.new(src: Instance)`.
-
----
-
-#### `Config:Get(key: string): any`
-
-Gets the current value for the specified key.
-
-- **ConfigInstance**: Finds the ValueBase child with the given name and returns its `.Value` property. Returns `nil` if not found.
-- **AttributeConfig**: Returns `Instance:GetAttribute(key)`.
+#### `BetterConfig.new<T>(src: ConfigSrc): BaseConfigClass<T>`
+Auto-detects the config source type and returns the appropriate implementation.
 
 **Parameters:**
+- `src`: Configuration instance, Instance (uses Attributes), or Lua table
 
-- `key`: The name of the configuration value to retrieve
-
-**Returns:**
-
-- The current value, or `nil` if the key does not exist
+**Returns:** Config object with `Get`, `Set`, `GetValueChangedSignal`, and `Destroy` methods
 
 ---
 
-#### `Config:Set(key: string, value: any): ()`
-
-Sets the value for the specified key.
-
-- **ConfigInstance**: Finds the ValueBase child with the given name and sets its `.Value` property. Warns if not found.
-- **AttributeConfig**: Calls `Instance:SetAttribute(key, value)`.
+#### `BetterConfig.fromAttribute<T>(src: Instance): AttributeConfig<T>`
+Creates an Attribute-based config explicitly.
 
 **Parameters:**
+- `src`: Any Instance with Attributes
 
-- `key`: The name of the configuration value to set
-- `value`: The new value
+**Returns:** AttributeConfig implementation
 
 ---
 
-#### `Config:GetValueChangedSignal(key: string): Signal`
-
-Returns a Signal that fires whenever the specified key's value changes. If the Signal for the key already exists, returns the existing one.
-
-- **ConfigInstance**: Connects to the ValueBase's `GetPropertyChangedSignal("Value")`. Each key gets its own RBXScriptConnection.
-- **AttributeConfig**: Uses a single shared `AttributeChanged` connection (lazy-initialized on first call) that dispatches to per-key Signals.
+#### `BetterConfig.fromConfiguration<T>(src: Configuration): ConfigInstance<T>`
+Creates a Configuration/ValueBase-based config explicitly.
 
 **Parameters:**
+- `src`: Configuration instance with ValueBase children
 
-- `key`: The name of the configuration value to observe
-
-**Returns:**
-
-- `Signal<any>`: A Signal that fires with the new value when the specified key changes
+**Returns:** ConfigInstance implementation
 
 ---
 
-#### `Config:Destroy()`
+#### `BetterConfig.fromDict<T>(src: {[string]: any}): DictionaryConfig<T>`
+Creates a Dictionary-based config explicitly. Internally creates a Configuration instance with appropriate ValueBase children.
 
-Disconnects all RBXScriptConnections and destroys all Signals. Should be called when the Config instance is no longer needed to prevent memory leaks.
+**Parameters:**
+- `src`: Lua table with string keys and number/string/boolean values
+
+**Returns:** DictionaryConfig implementation
 
 ---
 
-### Type Definitions
+### Instance Methods
+
+All config implementations expose the same interface:
+
+#### `Get<T>(key: keyof<T>): index<T, keyof<T>>`
+Retrieves the current value for the specified key.
+
+**Parameters:**
+- `key`: Configuration key (autocomplete enabled with type hints)
+
+**Returns:** Current value
+
+---
+
+#### `Set<T>(key: keyof<T>, value: index<T, keyof<T>>): ()`
+Sets a new value for the specified key.
+
+**Parameters:**
+- `key`: Configuration key (autocomplete enabled with type hints)
+- `value`: New value to set
+
+---
+
+#### `GetValueChangedSignal<T>(key: keyof<T>): Signal<index<T, keyof<T>>>`
+Returns a Signal that fires when the specified key's value changes.
+
+**Parameters:**
+- `key`: Configuration key (autocomplete enabled with type hints)
+
+**Returns:** Signal object with `Connect`, `Once`, `Wait` methods
+
+---
+
+#### `Destroy(): ()`
+Cleans up all connections and signals. Call this when done with the config.
+
+---
+
+### Types
 
 ```lua
--- Config source type discriminator
-export type ConfigSrcType = "Configuration" | "Attribute" | "Dict"
-
--- Config source types
-export type ConfigSrc = Configuration | Instance | { [string]: any }
-
--- Supported ValueBase types
-export type HasValuePropertyObject =
-    ObjectValue | IntValue | BoolValue | StringValue
-    | NumberValue | Color3Value | CFrameValue | Vector3Value
-    | BrickColorValue | RayValue
-
--- Base config class interface
 export type BaseConfigClass<T = { [string]: any }> = {
     ConfigSrc: ConfigSrc,
     ConfigType: ConfigSrcType,
 
-    Get: <K>(self: BaseConfigClass<T>, key: keyof<T>) -> index<T, K>,
-    Set: <K>(self: BaseConfigClass<T>, key: keyof<T>, value: any) -> (),
-    GetValueChangedSignal: <K>(self: BaseConfigClass<T>, key: keyof<T>) -> Signal<index<T, K>>,
+    Get: (self: BaseConfigClass<T>, key: keyof<T>) -> index<T, keyof<T>>,
+    Set: (self: BaseConfigClass<T>, key: keyof<T>, value: index<T, keyof<T>>) -> (),
+    GetValueChangedSignal: (self: BaseConfigClass<T>, key: keyof<T>) -> Signal,
     Destroy: (self: BaseConfigClass<T>) -> (),
 }
+
+export type ConfigSrc = Configuration | Instance | { [string]: any }
+export type ConfigSrcType = "Configuration" | "Attribute" | "Dict"
 ```
 
-### Example: Game Settings Manager
+## Examples
+
+Full examples are available at:
+- [`/Examples/client/BetterConfig.client.luau`](../../Examples/client/BetterConfig.client.luau) - Comprehensive examples with Attributes and Dictionary configs
+
+### Example 1: Attribute Config with Change Observation
 
 ```lua
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local BetterConfig = require(ReplicatedStorage.Packages.BetterConfig)
+local BetterConfig = require(ReplicatedStorage.Modules.BetterConfig)
 
--- Create a config from a Configuration instance
-local gameConfig = BetterConfig.new(workspace.GameConfig)
+-- Create a part with attributes
+local configPart = Instance.new("Part")
+configPart:SetAttribute("show_ui", true)
+configPart:SetAttribute("max_items", 10)
 
--- Read initial values
-local maxPlayers = gameConfig:Get("MaxPlayers")
-local difficulty = gameConfig:Get("Difficulty")
-print("Max Players:", maxPlayers, "Difficulty:", difficulty)
+-- Create config
+local config = BetterConfig.fromAttribute(configPart)
 
--- Update a value
-gameConfig:Set("MaxPlayers", 16)
+-- Get values
+print(config:Get("show_ui"))      -- true
+print(config:Get("max_items"))    -- 10
 
--- Listen for difficulty changes
-gameConfig:GetValueChangedSignal("Difficulty"):Connect(function(newDifficulty)
-    print("Difficulty changed to:", newDifficulty)
-    -- Update game mechanics based on difficulty
+-- Observe changes
+config:GetValueChangedSignal("max_items"):Connect(function(newValue)
+    print("max_items changed to:", newValue)
 end)
 
--- Listen for max players changes
-gameConfig:GetValueChangedSignal("MaxPlayers"):Connect(function(newMax)
-    print("Max players changed to:", newMax)
-end)
-
--- Clean up when done
-gameConfig:Destroy()
+-- Update value (fires the signal)
+config:Set("max_items", 20)  -- Prints: "max_items changed to: 20"
 ```
 
-### Dependencies
+### Example 2: Dictionary Config
 
-- [sleitnick/signal@^2.0](https://github.com/Sleitnick/RbxUtil/tree/main/modules/signal) — Signal implementation for reactive change observation
+```lua
+local BetterConfig = require(ReplicatedStorage.Modules.BetterConfig)
 
-### License
+-- Create config from table
+local config = BetterConfig.fromDict({
+    round_time = 120,
+    team_size = 4,
+    map_name = "Grasslands",
+})
 
-MIT
+-- Use like any other config
+print(config:Get("round_time"))  -- 120
+
+-- Observe and update
+config:GetValueChangedSignal("round_time"):Connect(function(newValue)
+    print("Round time changed to:", newValue)
+end)
+
+config:Set("round_time", 180)  -- Prints: "Round time changed to: 180"
+```
+
+## Comparison with RbxConfig
+
+| Feature | BetterConfig | RbxConfig |
+|---------|--------------|-----------|
+| **Config Source** | Local (Configuration/Attributes/Tables) | Cloud (Roblox ConfigService) |
+| **Setup Complexity** | Simple (no external setup) | Requires ConfigService setup in Creator Dashboard |
+| **Server Required** | No | Yes |
+| **Remote Updates** | No (local only) | Yes (update without restart) |
+| **Player Targeting** | No | Yes (per-player configs) |
+| **Use Cases** | Local game config, flexible sources | A/B testing, remote config, feature flags |
+| **Update Speed** | Immediate (local) | Network dependent |
+
+**Use BetterConfig when:**
+- You need local configuration storage
+- You want flexible config sources (Attributes, Configuration, tables)
+- You don't need remote config updates
+- Setup simplicity is important
+
+**Use RbxConfig when:**
+- You need cloud-based configuration
+- You want to update config without restarting servers
+- You need player-specific targeting for A/B testing
+- You want feature flags controlled remotely
+
+## Migration from v1.x to v2.0
+
+### Breaking Changes
+
+1. **Complete refactor using Strategy Pattern**: The internal implementation was split into three separate strategy classes (ConfigInstance, AttributeConfig, DictionaryConfig)
+2. **Method renamed**: `getConfigType()` became `_getConfigType()` (now private/internal)
+3. **API now strongly typed**: All methods use Luau generics with `keyof<T>` and `index<T, K>`
+4. **New DictionaryConfig support**: v2.0 adds support for plain Lua tables as config sources
+
+### Migration Steps
+
+1. **Update Wally dependency** to version 2.0.0:
+   ```toml
+   [dependencies]
+   BetterConfig = "zac134/better-config@2.0.0"
+   ```
+
+2. **Add type definitions** for autocomplete (optional but recommended):
+   ```lua
+   type MyConfig = {
+       max_players: number,
+       show_ui: boolean,
+   }
+   ```
+
+3. **Update internal API usage** (if you used private methods):
+   - `config:getConfigType()` → Not available (use `config.ConfigType` property instead)
+   - If you relied on internal implementation details, review the new Strategy Pattern architecture
+
+### Benefits of Upgrading
+
+- Better type inference and autocomplete
+- Support for Dictionary configs
+- Cleaner internal architecture (easier to extend)
+- Better performance (lazy observation in AttributeConfig)
+
+## Dependencies
+
+- **[sleitnick/signal@^2.0](https://github.com/sleitnick/rbx-util/tree/main/modules/signal)** - Signal implementation for reactive change observation
+
+## License
+
+MIT License
 
 ---
 
-<a name="japanese"></a>
+# BetterConfig (日本語)
 
-## 日本語
+Roblox用の統合設定管理ライブラリ。ストラテジーパターンを使用しています。
 
-### 概要
+## 概要
 
-BetterConfig は、Strategy Pattern を用いて統一的な設定管理を提供する Roblox Luau モジュールです。ソースの型に応じて適切な実装を自動選択し — `Configuration` インスタンス（ValueBase 子要素）またはインスタンスの Attribute — 値の取得・設定・変更監視のための一貫した API を提供します。
+BetterConfigは、Robloxの複数のソースからの設定データを管理するための、単一で一貫したAPIを提供します。設定がValueBase子要素を持つConfigurationインスタンス、インスタンス属性、または純粋なLuaテーブルのいずれから来ても、BetterConfigは違いを抽象化し、完全な型安全性とリアクティブな変更監視を備えた同じ直感的なインターフェースを提供します。
 
-### 特徴
+**問題**: Robloxの異なる設定ソースは異なるAPI(Configuration→ValueBase、Instance→Attributes、プレーンテーブル)を持っており、コードが一貫性を欠き、保守が困難になります。
 
-- ValueBase オブジェクト（IntValue、StringValue、NumberValue など）を持つ `Configuration` インスタンスのサポート
-- インスタンス Attribute のサポート
-- ソースの種類に関わらず統一された API（`Get` / `Set` / `GetValueChangedSignal`）
-- [sleitnick/signal](https://github.com/Sleitnick/RbxUtil/tree/main/modules/signal) を使用したリアクティブな変更監視
-- `Destroy()` による自動リソースクリーンアップ
-- ファクトリーパターンによるソースタイプの自動判定
-- Luau ジェネリクスと型注釈による型安全性
+**解決策**: BetterConfigはソースタイプを自動的に検出し、適切な実装を返すことで、型安全な自動補完を備えた統一されたインターフェースを提供します。
 
-### インストール
+## 機能
 
-#### Wally を使用する場合
+- **3つの設定ソースストラテジー**と自動検出
+- **型安全なAPI**: Luauジェネリクスと`keyof<T>`による自動補完
+- **リアクティブな値変更監視**: Signalサポート
+- **ゼロボイラープレート**: ファクトリーパターン
+- **リソース管理**: `Destroy()`メソッド
 
-`wally.toml` に以下を追加してください：
+## インストール
+
+### Wally経由
 
 ```toml
 [dependencies]
 BetterConfig = "zac134/better-config@2.0.0"
 ```
 
-### 使用方法
+### 手動インストール
 
-#### 基本的な使い方 — Get / Set
+`Modules/BetterConfig/`ディレクトリをプロジェクトのReplicatedStorageまたはServerStorageにコピーしてください。
+
+## クイックスタート
 
 ```lua
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local BetterConfig = require(ReplicatedStorage.Packages.BetterConfig)
+local BetterConfig = require(ReplicatedStorage.Modules.BetterConfig)
 
--- Configuration インスタンスを使用（ValueBase 子要素）
-local configInstance = workspace.GameConfig -- IntValue, StringValue 等を持つ Configuration
-local config = BetterConfig.new(configInstance)
+-- ファクトリーが設定ソースタイプを自動検出
+local config = BetterConfig.new(workspace.GameConfig)
 
-print(config:Get("MaxPlayers"))  -- "MaxPlayers" という名前の IntValue の Value を取得
-config:Set("MaxPlayers", 20)     -- "MaxPlayers" という名前の IntValue の Value を設定
+-- 値を取得
+local value = config:Get("max_players")
 
--- インスタンスの Attribute を使用
-local settingsInstance = workspace.Settings
-local settings = BetterConfig.new(settingsInstance)
+-- 値を設定
+config:Set("max_players", 10)
 
-print(settings:Get("Volume"))    -- Attribute "Volume" を取得
-settings:Set("Volume", 0.8)     -- Attribute "Volume" を設定
-```
-
-ファクトリー `BetterConfig.new()` はソースの型を自動判定します：
-
-- ソースが `Configuration` インスタンスの場合、**ConfigInstance**（ValueBase 子要素を使用）を作成します。
-- それ以外の場合、**AttributeConfig**（インスタンスの Attribute を使用）を作成します。
-
-#### 値の変更を監視
-
-`GetValueChangedSignal(key)` を使用して、指定した値が変更されたときに発火する Signal を取得します。
-
-```lua
-local signal = config:GetValueChangedSignal("MaxPlayers")
-
-signal:Connect(function(newValue)
-    print("MaxPlayers が変更されました:", newValue)
+-- 変更を監視
+config:GetValueChangedSignal("max_players"):Connect(function(newValue)
+    print("max_playersが変更されました:", newValue)
 end)
 ```
 
-返される Signal は [sleitnick/signal](https://github.com/Sleitnick/RbxUtil/tree/main/modules/signal) のインスタンスで、`Connect`、`Once`、`Wait` などの標準的な Signal メソッドをサポートしています。
+## 設定ソース
 
-#### 個別の実装を直接使用
+### 1. インスタンス属性
 
-ソースの型が事前にわかっている場合、実装クラスを直接使用できます：
+既存のインスタンスにシンプルなキーバリュー設定が必要な場合は、属性を使用します。
 
 ```lua
--- ConfigInstance（ValueBase 子要素を持つ Configuration 用）
-local ConfigInstance = BetterConfig.ConfigInstance
-local config = ConfigInstance.new(workspace.GameConfig)
+local part = workspace.ConfigPart
+part:SetAttribute("max_items", 10)
+part:SetAttribute("show_ui", true)
 
--- AttributeConfig（インスタンスの Attribute 用）
-local AttributeConfig = BetterConfig.AttributeConfig
-local settings = AttributeConfig.new(workspace.Settings)
+local config = BetterConfig.fromAttribute(part)
+local maxItems = config:Get("max_items")
+config:Set("show_ui", false)
 ```
 
-#### クリーンアップ
+**利点:**
+- Roblox属性がサポートする柔軟な型
+- Studioのプロパティパネルで簡単に検査・変更可能
+- 軽量(子インスタンス不要)
+
+### 2. Configuration/ValueBase
+
+特定のValueBaseタイプが必要な場合、またはStudioでのビジュアル編集が必要な場合は、Configurationインスタンスを使用します。
 
 ```lua
--- 不要になったら全ての接続と Signal をクリーンアップ
+local configInstance = workspace.GameConfig  -- ValueBase子要素を持つConfigurationインスタンス
+local config = BetterConfig.fromConfiguration(configInstance)
+
+local maxPlayers = config:Get("max_players")  -- IntValue子要素から読み取り
+config:Set("max_players", 8)  -- IntValue.Valueを更新
+```
+
+**利点:**
+- 型固有のValueBase子要素(IntValue、StringValue、BoolValueなど)
+- Studioエクスプローラーでのビジュアル階層
+- ValueBaseプロパティへの直接アクセス
+
+**サポートされているValueBaseタイプ:** `ObjectValue`、`IntValue`、`BoolValue`、`StringValue`、`NumberValue`、`Color3Value`、`CFrameValue`、`Vector3Value`、`BrickColorValue`、`RayValue`
+
+### 3. Dictionary/Table
+
+ランタイム設定生成、テスト、またはプログラマティック設定が必要な場合は、Dictionary設定を使用します。
+
+```lua
+local config = BetterConfig.fromDict({
+    round_time = 120,
+    team_size = 4,
+    map_name = "Grasslands",
+})
+
+local roundTime = config:Get("round_time")
+config:Set("round_time", 180)
+```
+
+**利点:**
+- インスタンス不要、純粋なLua
+- テストやランタイム設定に最適
+- 自動型マッピング(string→StringValue、number→NumberValueなど)
+- 適切なValueBase子要素を持つ内部Configurationインスタンスを作成
+
+## ファクトリー vs 明示的メソッド
+
+### 自動検出(推奨)
+
+```lua
+local config1 = BetterConfig.new(workspace.GameConfig)  -- Configuration検出
+local config2 = BetterConfig.new(workspace.Part)         -- Attribute検出
+local config3 = BetterConfig.new({key = "value"})        -- Dictionary検出
+```
+
+自動ソース検出が必要な場合は`BetterConfig.new()`を使用してください。
+
+### 明示的メソッド
+
+```lua
+local config1 = BetterConfig.fromAttribute(instance)      -- 明示的なAttribute設定
+local config2 = BetterConfig.fromConfiguration(config)    -- 明示的なConfiguration設定
+local config3 = BetterConfig.fromDict(table)               -- 明示的なDictionary設定
+```
+
+明示的メソッドを使用する場合:
+- 設定タイプについて明示的にしたい
+- より良い型推論が必要
+- ライブラリを構築していて明確な契約が必要
+
+## 型安全な自動補完
+
+自動補完サポートのために、設定の形状を型として定義します:
+
+```lua
+type MyConfig = {
+    show_ui: boolean,
+    max_items: number,
+    welcome_message: string,
+}
+
+-- 型ヒントにより、すべてのメソッドで自動補完が有効化
+local config = BetterConfig.fromAttribute(configPart)
+
+-- 自動補完付きで取得 - 有効なキーが自動的に提案される
+local showUi = config:Get("show_ui")        -- ✓ 自動補完が機能
+local maxItems = config:Get("max_items")    -- ✓ 自動補完が機能
+-- config:Get("invalid_key")                -- ✗ strictモード有効時は型エラー
+```
+
+型定義により、`Get`、`Set`、`GetValueChangedSignal`を呼び出す際に、IDE/エディタが有効なキーを提案できるようになります。
+
+## 値変更の監視
+
+`GetValueChangedSignal`は、値が変更されたときに発火する[Signal](https://github.com/sleitnick/rbx-util/tree/main/modules/signal)を返します:
+
+```lua
+local signal = config:GetValueChangedSignal("max_items")
+
+-- 変更を監視するために接続
+signal:Connect(function(newValue)
+    print("max_itemsが変更されました:", newValue)
+end)
+
+-- 一度発火して切断
+signal:Once(function(newValue)
+    print("最初の変更が検出されました:", newValue)
+end)
+
+-- 次の変更を待機
+task.spawn(function()
+    local newValue = signal:Wait()
+    print("新しい値を取得しました:", newValue)
+end)
+```
+
+### Signalが発火するタイミング
+
+- **AttributeConfig**: `Instance:SetAttribute()`が呼び出されるか、Studioで属性が変更されたとき
+- **ConfigInstance**: ValueBase子要素の`.Value`プロパティが変更されたとき
+- **DictionaryConfig**: 設定で`Set()`が呼び出されたとき
+
+## リソースのクリーンアップ
+
+設定の使用が終了したら、接続とシグナルをクリーンアップするために必ず`Destroy()`を呼び出してください:
+
+```lua
+local config = BetterConfig.new(workspace.GameConfig)
+
+-- 設定を使用...
+config:GetValueChangedSignal("max_items"):Connect(handler)
+
+-- 終了時にクリーンアップ(重要!)
 config:Destroy()
 ```
 
-### API リファレンス
+**重要な理由:** `GetValueChangedSignal`は`RBXScriptConnection`オブジェクトとSignalインスタンスを作成します。`Destroy()`を呼び出すと、すべての接続が切断され、すべてのシグナルが破棄され、メモリリークを防ぎます。
 
-#### `BetterConfig.new(src: Configuration | Instance): BaseConfigClass`
+**Destroy()を呼び出すタイミング:**
+- 設定が不要になったとき
+- ソースインスタンスを削除する前
+- クリーンアップ関数内(例: `Maid:DoCleaning()`)
 
-新しい Config インスタンスを作成します。ソースの型に応じて実装を自動選択します。
+## APIリファレンス
+
+### ファクトリーメソッド
+
+#### `BetterConfig.new<T>(src: ConfigSrc): BaseConfigClass<T>`
+設定ソースタイプを自動検出し、適切な実装を返します。
 
 **パラメータ:**
+- `src`: Configurationインスタンス、Instance(属性を使用)、またはLuaテーブル
 
-- `src`: `Configuration` インスタンス（ValueBase 子要素を使用）、またはその他の `Instance`（Attribute を使用）
-
-**戻り値:**
-
-- `BaseConfigClass`: 適切な Config 実装
-
-**エラー:**
-
-- `src` がテーブルの場合はエラー（未実装）
-- `src` が無効な型の場合はエラー
+**戻り値:** `Get`、`Set`、`GetValueChangedSignal`、`Destroy`メソッドを持つ設定オブジェクト
 
 ---
 
-#### `BetterConfig.ConfigInstance`
+#### `BetterConfig.fromAttribute<T>(src: Instance): AttributeConfig<T>`
+明示的に属性ベースの設定を作成します。
 
-ConfigInstance クラスへの直接参照。`ConfigInstance.new(src: Configuration)` で直接オブジェクトを作成できます。
+**パラメータ:**
+- `src`: 属性を持つ任意のインスタンス
 
-#### `BetterConfig.AttributeConfig`
-
-AttributeConfig クラスへの直接参照。`AttributeConfig.new(src: Instance)` で直接オブジェクトを作成できます。
+**戻り値:** AttributeConfig実装
 
 ---
 
-#### `Config:Get(key: string): any`
+#### `BetterConfig.fromConfiguration<T>(src: Configuration): ConfigInstance<T>`
+明示的にConfiguration/ValueBaseベースの設定を作成します。
 
+**パラメータ:**
+- `src`: ValueBase子要素を持つConfigurationインスタンス
+
+**戻り値:** ConfigInstance実装
+
+---
+
+#### `BetterConfig.fromDict<T>(src: {[string]: any}): DictionaryConfig<T>`
+明示的にDictionaryベースの設定を作成します。内部的に適切なValueBase子要素を持つConfigurationインスタンスを作成します。
+
+**パラメータ:**
+- `src`: 文字列キーと数値/文字列/真偽値を持つLuaテーブル
+
+**戻り値:** DictionaryConfig実装
+
+---
+
+### インスタンスメソッド
+
+すべての設定実装は同じインターフェースを公開します:
+
+#### `Get<T>(key: keyof<T>): index<T, keyof<T>>`
 指定されたキーの現在の値を取得します。
 
-- **ConfigInstance**: 指定された名前の ValueBase 子要素を見つけ、その `.Value` プロパティを返します。見つからない場合は `nil` を返します。
-- **AttributeConfig**: `Instance:GetAttribute(key)` を返します。
+**パラメータ:**
+- `key`: 設定キー(型ヒント付きで自動補完有効)
+
+**戻り値:** 現在の値
+
+---
+
+#### `Set<T>(key: keyof<T>, value: index<T, keyof<T>>): ()`
+指定されたキーの新しい値を設定します。
 
 **パラメータ:**
-
-- `key`: 取得する設定値の名前
-
-**戻り値:**
-
-- 現在の値。キーが存在しない場合は `nil`
+- `key`: 設定キー(型ヒント付きで自動補完有効)
+- `value`: 設定する新しい値
 
 ---
 
-#### `Config:Set(key: string, value: any): ()`
-
-指定されたキーに値を設定します。
-
-- **ConfigInstance**: 指定された名前の ValueBase 子要素を見つけ、その `.Value` プロパティを設定します。見つからない場合は警告を出力します。
-- **AttributeConfig**: `Instance:SetAttribute(key, value)` を呼び出します。
+#### `GetValueChangedSignal<T>(key: keyof<T>): Signal<index<T, keyof<T>>>`
+指定されたキーの値が変更されたときに発火するSignalを返します。
 
 **パラメータ:**
+- `key`: 設定キー(型ヒント付きで自動補完有効)
 
-- `key`: 設定する値の名前
-- `value`: 新しい値
-
----
-
-#### `Config:GetValueChangedSignal(key: string): Signal`
-
-指定されたキーの値が変更されたときに発火する Signal を返します。既にそのキーの Signal が存在する場合は、既存のものを返します。
-
-- **ConfigInstance**: ValueBase の `GetPropertyChangedSignal("Value")` に接続します。各キーごとに個別の RBXScriptConnection を作成します。
-- **AttributeConfig**: 共有の `AttributeChanged` 接続を1つだけ使用し（初回呼び出し時に遅延初期化）、キーごとの Signal にディスパッチします。
-
-**パラメータ:**
-
-- `key`: 監視する設定値の名前
-
-**戻り値:**
-
-- `Signal<any>`: 指定されたキーが変更されたときに新しい値で発火する Signal
+**戻り値:** `Connect`、`Once`、`Wait`メソッドを持つSignalオブジェクト
 
 ---
 
-#### `Config:Destroy()`
-
-全ての RBXScriptConnection を切断し、全ての Signal を破棄します。メモリリークを防ぐため、Config インスタンスが不要になったときに呼び出してください。
+#### `Destroy(): ()`
+すべての接続とシグナルをクリーンアップします。設定の使用が終了したら呼び出してください。
 
 ---
 
-### 型定義
+### 型
 
 ```lua
--- コンフィグソースの種別判別型
-export type ConfigSrcType = "Configuration" | "Attribute" | "Dict"
-
--- コンフィグソースの型
-export type ConfigSrc = Configuration | Instance | { [string]: any }
-
--- サポートされる ValueBase 型
-export type HasValuePropertyObject =
-    ObjectValue | IntValue | BoolValue | StringValue
-    | NumberValue | Color3Value | CFrameValue | Vector3Value
-    | BrickColorValue | RayValue
-
--- 基本コンフィグクラスのインターフェース
 export type BaseConfigClass<T = { [string]: any }> = {
     ConfigSrc: ConfigSrc,
     ConfigType: ConfigSrcType,
 
-    Get: <K>(self: BaseConfigClass<T>, key: keyof<T>) -> index<T, K>,
-    Set: <K>(self: BaseConfigClass<T>, key: keyof<T>, value: any) -> (),
-    GetValueChangedSignal: <K>(self: BaseConfigClass<T>, key: keyof<T>) -> Signal<index<T, K>>,
+    Get: (self: BaseConfigClass<T>, key: keyof<T>) -> index<T, keyof<T>>,
+    Set: (self: BaseConfigClass<T>, key: keyof<T>, value: index<T, keyof<T>>) -> (),
+    GetValueChangedSignal: (self: BaseConfigClass<T>, key: keyof<T>) -> Signal,
     Destroy: (self: BaseConfigClass<T>) -> (),
 }
+
+export type ConfigSrc = Configuration | Instance | { [string]: any }
+export type ConfigSrcType = "Configuration" | "Attribute" | "Dict"
 ```
 
-### 使用例：ゲーム設定マネージャー
+## 例
+
+完全な例は以下で利用可能です:
+- [`/Examples/client/BetterConfig.client.luau`](../../Examples/client/BetterConfig.client.luau) - 属性とDictionary設定の包括的な例
+
+### 例1: 変更監視付き属性設定
 
 ```lua
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local BetterConfig = require(ReplicatedStorage.Packages.BetterConfig)
+local BetterConfig = require(ReplicatedStorage.Modules.BetterConfig)
 
--- Configuration インスタンスからコンフィグを作成
-local gameConfig = BetterConfig.new(workspace.GameConfig)
+-- 属性を持つパーツを作成
+local configPart = Instance.new("Part")
+configPart:SetAttribute("show_ui", true)
+configPart:SetAttribute("max_items", 10)
 
--- 初期値を読み取り
-local maxPlayers = gameConfig:Get("MaxPlayers")
-local difficulty = gameConfig:Get("Difficulty")
-print("最大プレイヤー数:", maxPlayers, "難易度:", difficulty)
+-- 設定を作成
+local config = BetterConfig.fromAttribute(configPart)
 
--- 値を更新
-gameConfig:Set("MaxPlayers", 16)
+-- 値を取得
+print(config:Get("show_ui"))      -- true
+print(config:Get("max_items"))    -- 10
 
--- 難易度の変更をリッスン
-gameConfig:GetValueChangedSignal("Difficulty"):Connect(function(newDifficulty)
-    print("難易度が変更されました:", newDifficulty)
-    -- 難易度に基づいてゲームメカニクスを更新
+-- 変更を監視
+config:GetValueChangedSignal("max_items"):Connect(function(newValue)
+    print("max_itemsが変更されました:", newValue)
 end)
 
--- 最大プレイヤー数の変更をリッスン
-gameConfig:GetValueChangedSignal("MaxPlayers"):Connect(function(newMax)
-    print("最大プレイヤー数が変更されました:", newMax)
-end)
-
--- 使い終わったらクリーンアップ
-gameConfig:Destroy()
+-- 値を更新(シグナルが発火)
+config:Set("max_items", 20)  -- 出力: "max_itemsが変更されました: 20"
 ```
 
-### 依存関係
+### 例2: Dictionary設定
 
-- [sleitnick/signal@^2.0](https://github.com/Sleitnick/RbxUtil/tree/main/modules/signal) — リアクティブな変更監視のための Signal 実装
+```lua
+local BetterConfig = require(ReplicatedStorage.Modules.BetterConfig)
 
-### ライセンス
+-- テーブルから設定を作成
+local config = BetterConfig.fromDict({
+    round_time = 120,
+    team_size = 4,
+    map_name = "Grasslands",
+})
 
-MIT
+-- 他の設定と同様に使用
+print(config:Get("round_time"))  -- 120
+
+-- 監視と更新
+config:GetValueChangedSignal("round_time"):Connect(function(newValue)
+    print("ラウンド時間が変更されました:", newValue)
+end)
+
+config:Set("round_time", 180)  -- 出力: "ラウンド時間が変更されました: 180"
+```
+
+## RbxConfigとの比較
+
+| 機能 | BetterConfig | RbxConfig |
+|------|--------------|-----------|
+| **設定ソース** | ローカル(Configuration/Attributes/Tables) | クラウド(Roblox ConfigService) |
+| **セットアップの複雑さ** | シンプル(外部セットアップ不要) | Creator DashboardでのConfigServiceセットアップが必要 |
+| **サーバー必須** | いいえ | はい |
+| **リモート更新** | いいえ(ローカルのみ) | はい(再起動なしで更新) |
+| **プレイヤーターゲティング** | いいえ | はい(プレイヤー別設定) |
+| **ユースケース** | ローカルゲーム設定、柔軟なソース | A/Bテスト、リモート設定、機能フラグ |
+| **更新速度** | 即座(ローカル) | ネットワーク依存 |
+
+**BetterConfigを使用する場合:**
+- ローカル設定ストレージが必要
+- 柔軟な設定ソース(Attributes、Configuration、tables)が必要
+- リモート設定更新が不要
+- セットアップのシンプルさが重要
+
+**RbxConfigを使用する場合:**
+- クラウドベースの設定が必要
+- サーバー再起動なしで設定を更新したい
+- A/Bテストのためのプレイヤー固有のターゲティングが必要
+- リモートで制御される機能フラグが必要
+
+## v1.xからv2.0への移行
+
+### 破壊的変更
+
+1. **ストラテジーパターンを使用した完全なリファクタリング**: 内部実装が3つの個別のストラテジークラス(ConfigInstance、AttributeConfig、DictionaryConfig)に分割されました
+2. **メソッド名変更**: `getConfigType()`が`_getConfigType()`に(現在はプライベート/内部)
+3. **APIが強く型付けされました**: すべてのメソッドが`keyof<T>`と`index<T, K>`を使用したLuauジェネリクスを使用
+4. **新しいDictionaryConfigサポート**: v2.0では、設定ソースとして純粋なLuaテーブルのサポートが追加されました
+
+### 移行手順
+
+1. **Wally依存関係をバージョン2.0.0に更新**:
+   ```toml
+   [dependencies]
+   BetterConfig = "zac134/better-config@2.0.0"
+   ```
+
+2. **自動補完のための型定義を追加**(オプションですが推奨):
+   ```lua
+   type MyConfig = {
+       max_players: number,
+       show_ui: boolean,
+   }
+   ```
+
+3. **内部API使用を更新**(プライベートメソッドを使用していた場合):
+   - `config:getConfigType()` → 利用不可(代わりに`config.ConfigType`プロパティを使用)
+   - 内部実装の詳細に依存していた場合は、新しいストラテジーパターンアーキテクチャを確認してください
+
+### アップグレードの利点
+
+- より良い型推論と自動補完
+- Dictionary設定のサポート
+- よりクリーンな内部アーキテクチャ(拡張が容易)
+- より良いパフォーマンス(AttributeConfigでの遅延監視)
+
+## 依存関係
+
+- **[sleitnick/signal@^2.0](https://github.com/sleitnick/rbx-util/tree/main/modules/signal)** - リアクティブな変更監視のためのSignal実装
+
+## ライセンス
+
+MIT License
