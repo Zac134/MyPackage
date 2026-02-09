@@ -5,7 +5,7 @@ registry = "test"
 [[package]]
 name = "atsu/myutils"
 version = "0.1.0"
-dependencies = [["BetterConfig", "zac134/better-config@2.1.1"]]
+dependencies = [["BetterConfig", "zac134/better-config@2.1.2"], ["RbxCOnfig", "zac134/rbx-config@0.0.2"]]
 
 [[package]]
 name = "sleitnick/signal"
@@ -14,5 +14,10 @@ dependencies = []
 
 [[package]]
 name = "zac134/better-config"
-version = "2.1.1"
+version = "2.1.2"
+dependencies = [["signal", "sleitnick/signal@2.0.3"]]
+
+[[package]]
+name = "zac134/rbx-config"
+version = "0.0.2"
 dependencies = [["signal", "sleitnick/signal@2.0.3"]]

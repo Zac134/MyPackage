@@ -5,4 +5,5 @@ registry = "https://github.com/UpliftGames/wally-index"
 realm = "shared"
 
 [dependencies]
-BetterConfig = "zac134/better-config@2.1.1"
+BetterConfig = "zac134/better-config@2.1.2"
+RbxCOnfig = "zac134/rbx-config@0.0.2"
